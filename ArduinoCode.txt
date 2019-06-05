@@ -1,0 +1,96 @@
+#include <SoftwareSerial.h> //블루투스 통신용 라이브러리
+#include <DHT.h>  //온습도 센서 사용을 위한 라이브러리
+#include <MQ7.h>  //MQ7 센서 라이브러리(CO)
+
+#define DHTPIN A1  //온습도 센서 핀 지정
+#define DHTTYPE DHT11  //DHT 타입 지정
+#define BT_RXD 8 //블루투스 핀 설정
+#define BT_TXD 7
+
+MQ7 mq7(A2,5.0);  //CO값 측정
+
+SoftwareSerial bluetooth(BT_RXD, BT_TXD);  //블루투스의 타입, 핀을 bluetooth로 지정
+DHT dht(DHTPIN, DHTTYPE);  //DHT11의 타입, 핀을 dht로 지정
+String txString = "";  //값을 저장할 문자열
+
+int dust_sensor = A0;  //미세먼지 핀 설정
+float dust_value = 0;  //센서에서 입력받은 미세먼지 값
+float dustDensityug=0;  //ug/m^3 값을 계산
+int sensor_led=12;  //미세먼지 센서 안에 있는 적외선 led 핀 번호
+int sampling=280;  //적외선 led를 키고, 센서값을 읽어들여 미세먼지를 측정
+int waiting=40;
+float stop_time=9680;  //센서를 구동하지 않는 시간
+
+double five_dust[5]={0};
+double recent_dust =0,total_dust=0;
+
+int GasPin = A2;  //가스센서 입력을 위한 아날로그 핀
+float sensor_volt;
+float RS_air;
+float R0;
+float sensorValue;
+
+void setup(){
+  pinMode(sensor_led,OUTPUT); //미세먼지 적외선 led를 출력으로 설정
+  pinMode(4,OUTPUT);
+  pinMode(GasPin,INPUT);
+  
+  Serial.begin(9600);
+  bluetooth.begin(9600);
+}
+ 
+void loop(){
+  for(int i=0;i<4;i++){
+    digitalWrite(sensor_led,LOW);  //LED 켜기
+    delayMicroseconds(sampling);  //샘플링해주는 시간
+
+    int count=0;
+    dust_value=analogRead(dust_sensor);  //센서 값 읽어오기
+
+    delayMicroseconds(waiting);  //너무 많은 데이터 입력을 피하기위한 정지
+
+    digitalWrite(sensor_led,HIGH);  //led 끄기
+    delayMicroseconds(stop_time);  //led 끄고 대기
+
+    recent_dust=(0.17*(dust_value * (5.0/1024.0))-0.1)*1000;//미세먼지 값 계산
+    five_dust[i]=recent_dust;  //새로운 미세먼지 값 입력
+    total_dust=five_dust[4];  //4개의 미세먼지 값을 저장할 변수
+  }
+
+  for(int i=0;i<4;i++){
+    total_dust+=five_dust[i];
+    five_dust[i]=five_dust[i+1];
+  }
+  if(five_dust[0] != 0){
+    dustDensityug=total_dust/5;
+  }  //5개의 측정값에 대한 평균 값 저장
+  
+  int temp = dht.readTemperature();  //온도 값 저장
+  int hum = dht.readHumidity();  //습도 값 저장
+
+  //각각의 측정값들을 하나의 String으로 합침
+  txString += temp;
+  txString += ',';
+  txString += hum;
+  txString += ',';
+  txString += dustDensityug;
+  txString += ',';
+  txString += mq7.getPPM();  //라이브러리에 있는 CO값의 표준형인 ppm단위로 변환해서 저장
+
+  if(!txString.equals("")){
+    //확인을 위해 시리얼 모니터에 출력
+     Serial.print(txString);
+     delay(1000);
+  
+     /*if (bluetooth.available()) {
+        Serial.write(bluetooth.read());
+        delay(5);
+     }
+      if (Serial.available()) {
+        bluetooth.print(txString);
+        delay(1000);
+     }*/
+     //블루투스를 통해 송신하고 문자열은 다시 비워줌
+     bluetooth.println(txString);
+     txString="";
+  }
