@@ -250,7 +250,7 @@ public class GpsTracker extends Service implements LocationListener {
                     String param = "id="+id+"&temp="+temp+"&humi="+humi+"&dust="+dust+"&co="+co+"&latitude="+latitude+"&longitude="+longitude;
                     Log.e("param", param);
 
-                    URL url = new URL( ServerCommunication.IP + "/insert2.php");
+                    URL url = new URL( ServerCommunication.IP + "/insert.php");
                     HttpURLConnection httpURLConnection = (HttpURLConnection) url.openConnection();
 
                     httpURLConnection.setReadTimeout(5000); // 5초
